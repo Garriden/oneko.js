@@ -1,11 +1,15 @@
 // oneko.js: https://github.com/adryd325/oneko.js
 
+
+
 (function oneko() {
+  const NEKO_SPEED = 12;
+
   const isReducedMotion =
     window.matchMedia(`(prefers-reduced-motion: reduce)`) === true ||
     window.matchMedia(`(prefers-reduced-motion: reduce)`).matches === true;
 
-  if (isReducedMotion) return;
+  if(isReducedMotion) return;
 
   const nekoEl = document.createElement("div");
 
@@ -20,7 +24,6 @@
   let idleAnimation = null;
   let idleAnimationFrame = 0;
 
-  const nekoSpeed = 10;
   const spriteSets = {
     idle: [[-3, -3]],
     alert: [[-7, -3]],
@@ -90,13 +93,13 @@
     nekoEl.style.width = "32px";
     nekoEl.style.height = "32px";
     nekoEl.style.position = "fixed";
-    nekoEl.style.pointerEvents = "none";
+    nekoEl.style.pointerEvents = "auto";
     nekoEl.style.imageRendering = "pixelated";
     nekoEl.style.left = `${nekoPosX - 16}px`;
     nekoEl.style.top = `${nekoPosY - 16}px`;
     nekoEl.style.zIndex = 2147483647;
 
-    let nekoFile = "./oneko.gif"
+    let nekoFile = "./images/oneko.gif"
     const curScript = document.currentScript
     if (curScript && curScript.dataset.cat) {
       nekoFile = curScript.dataset.cat
@@ -104,6 +107,12 @@
     nekoEl.style.backgroundImage = `url(${nekoFile})`;
 
     document.body.appendChild(nekoEl);
+
+    // Scroll.
+    document.addEventListener("wheel", function (event) {
+      nekoPosY -= event.deltaY / 2;
+      updatePos();
+    });
 
     document.addEventListener("mousemove", function (event) {
       mousePosX = event.clientX;
@@ -117,16 +126,19 @@
 
   function onAnimationFrame(timestamp) {
     // Stops execution if the neko element is removed from DOM
-    if (!nekoEl.isConnected) {
+    if(!nekoEl.isConnected) {
       return;
     }
-    if (!lastFrameTimestamp) {
+
+    if(!lastFrameTimestamp) {
       lastFrameTimestamp = timestamp;
     }
-    if (timestamp - lastFrameTimestamp > 100) {
-      lastFrameTimestamp = timestamp
-      frame()
+
+    if(timestamp - lastFrameTimestamp > 100) {
+      lastFrameTimestamp = timestamp;
+      frame();
     }
+
     window.requestAnimationFrame(onAnimationFrame);
   }
 
@@ -150,16 +162,16 @@
       idleAnimation == null
     ) {
       let avalibleIdleAnimations = ["sleeping", "scratchSelf"];
-      if (nekoPosX < 32) {
+      if(nekoPosX < 32) {
         avalibleIdleAnimations.push("scratchWallW");
       }
-      if (nekoPosY < 32) {
+      if(nekoPosY < 32) {
         avalibleIdleAnimations.push("scratchWallN");
       }
-      if (nekoPosX > window.innerWidth - 32) {
+      if(nekoPosX > window.innerWidth - 32) {
         avalibleIdleAnimations.push("scratchWallE");
       }
-      if (nekoPosY > window.innerHeight - 32) {
+      if(nekoPosY > window.innerHeight - 32) {
         avalibleIdleAnimations.push("scratchWallS");
       }
       idleAnimation =
@@ -170,12 +182,12 @@
 
     switch (idleAnimation) {
       case "sleeping":
-        if (idleAnimationFrame < 8) {
+        if(idleAnimationFrame < 8) {
           setSprite("tired", 0);
           break;
         }
         setSprite("sleeping", Math.floor(idleAnimationFrame / 4));
-        if (idleAnimationFrame > 192) {
+        if(idleAnimationFrame > 192) {
           resetIdleAnimation();
         }
         break;
@@ -193,16 +205,58 @@
         setSprite("idle", 0);
         return;
     }
-    idleAnimationFrame += 1;
+    ++idleAnimationFrame;
   }
 
+  function explodeHearts() {
+    const parent = nekoEl.parentElement;
+    const rect = nekoEl.getBoundingClientRect();
+    const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const centerX = rect.left + rect.width / 2 + scrollLeft;
+    const centerY = rect.top + rect.height / 2 + scrollTop;
+
+    for (let ii = 0; ii < 50; ++ii) {
+      const heart = document.createElement('div');
+      heart.className = 'heart';
+      heart.textContent = '❤';
+      const offsetX = (Math.random() - 0.6) * 100;
+      const offsetY = (Math.random() - 0.65) * 100;
+      heart.style.left = `${centerX + offsetX - 16}px`;
+      heart.style.top = `${centerY + offsetY - 16}px`;
+      parent.appendChild(heart);
+
+      setTimeout(() => {
+        parent.removeChild(heart);
+      }, 1000);
+    }
+  }
+
+  const style = document.createElement('style');
+  style.innerHTML = `
+		  @keyframes heartBurst {
+			  0% { transform: scale(0); opacity: 1; }
+        100% { transform: scale(1); opacity: 0; }
+		  }
+		  .heart {
+			  position: absolute;
+			  font-size: 4em;
+			  animation: heartBurst 1s ease-out;
+			  animation-fill-mode: forwards;
+			  color: #f40a7bff;
+		  }
+	  `;
+
+  document.head.appendChild(style);
+  nekoEl.addEventListener('click', explodeHearts);
+
   function frame() {
-    frameCount += 1;
+    ++frameCount;
     const diffX = nekoPosX - mousePosX;
     const diffY = nekoPosY - mousePosY;
     const distance = Math.sqrt(diffX ** 2 + diffY ** 2);
 
-    if (distance < nekoSpeed || distance < 48) {
+    if(distance < NEKO_SPEED || distance < 72) {
       idle();
       return;
     }
@@ -210,30 +264,38 @@
     idleAnimation = null;
     idleAnimationFrame = 0;
 
-    if (idleTime > 1) {
+    if(idleTime > 1) {
       setSprite("alert", 0);
+
       // count down after being alerted before moving
       idleTime = Math.min(idleTime, 7);
-      idleTime -= 1;
+      --idleTime;
       return;
     }
 
     let direction;
-    direction = diffY / distance > 0.5 ? "N" : "";
+    direction  = diffY / distance >  0.5 ? "N" : "";
     direction += diffY / distance < -0.5 ? "S" : "";
-    direction += diffX / distance > 0.5 ? "W" : "";
+    direction += diffX / distance >  0.5 ? "W" : "";
     direction += diffX / distance < -0.5 ? "E" : "";
     setSprite(direction, frameCount);
 
-    nekoPosX -= (diffX / distance) * nekoSpeed;
-    nekoPosY -= (diffY / distance) * nekoSpeed;
+    nekoPosX -= (diffX / distance) * NEKO_SPEED;
+    nekoPosY -= (diffY / distance) * NEKO_SPEED;
 
-    nekoPosX = Math.min(Math.max(16, nekoPosX), window.innerWidth - 16);
-    nekoPosY = Math.min(Math.max(16, nekoPosY), window.innerHeight - 16);
+    updatePos();
+  }
 
+function updatePos() {
+  // Hide the cat if it is off-screen
+  if(nekoPosY > window.innerHeight) {
+    nekoEl.style.display = "none";
+  } else {
+    nekoEl.style.display = "block";
     nekoEl.style.left = `${nekoPosX - 16}px`;
     nekoEl.style.top = `${nekoPosY - 16}px`;
   }
+}
 
   init();
 })();
